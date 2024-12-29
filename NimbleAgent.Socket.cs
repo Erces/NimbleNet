@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net.Sockets;
 using System.Net;
-using System.Text;
-using System.Threading.Tasks;
+using System.Threading;
 
 namespace NimbleNet
 {
@@ -16,76 +14,87 @@ namespace NimbleNet
         public static readonly bool IPv6Support;
         public bool IPv6Enabled;
 
+
+
         /// <summary>
-        /// [Server Mode]
         /// Start logic thread and listening on selected port
         /// </summary>
-        /// <param name="addressIPv4">bind to specific ipv4 address</param>
-        /// <param name="addressIPv6">bind to specific ipv6 address</param>
-        /// <param name="port">port to listen</param>
-        public bool Start(IPAddress addressIPv4, IPAddress addressIPv6, int port)
-        {
-            if (IsRunning && IsConnected)
-                return false;
-
-            IsConnected = true;
-            // IPv4 soketini oluştur
-            _udpSocketv4 = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-
-            // IPv4 soketi başarıyla bağlanabiliyor mu?
-            if (!BindSocket(_udpSocketv4, new IPEndPoint(addressIPv4, port)))
-                return false;
-
-            var LocalPort = ((IPEndPoint)_udpSocketv4.LocalEndPoint).Port;
-            Console.WriteLine($"Bound to IPv4 address: {addressIPv4}:{LocalPort}");
-
-            IsRunning = true;
-
-            // IPv6 desteği varsa, IPv6 soketini oluştur
-            if (IPv6Support && IPv6Enabled)
-            {
-                _udpSocketv6 = new Socket(AddressFamily.InterNetworkV6, SocketType.Dgram, ProtocolType.Udp);
-
-                // IPv6 soketini aynı port ile bağla
-                if (!BindSocket(_udpSocketv6, new IPEndPoint(addressIPv6, LocalPort)))
-                {
-                    Console.WriteLine("Failed to bind IPv6 socket.");
-                    _udpSocketv6 = null;
-                }
-                else
-                {
-                    Console.WriteLine($"Bound to IPv6 address: {addressIPv6}:{LocalPort}");
-                }
-            }
-
-            // Dinleyici thread'i başlat
-            Thread listenerThread = new Thread(ListenerThread);
-            listenerThread.Start();
-
-            return true;
-        }
-
-        /// <summary>
-        /// [Client Mode]
-        /// Connect to a remote server as a client.
-        /// </summary>
-        /// <param name="serverAddress">Server IP address</param>
-        /// <param name="port">Server port</param>
-        public bool Connect(IPAddress serverAddress, int port)
+        public bool Start(IPAddress addressIPv4, IPAddress addressIPv6, int port, bool isHost, bool connectToSelf = false, IPAddress? serverAddress = null)
         {
             if (IsRunning)
                 return false;
 
-            _udpSocketv4 = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            if (isHost)
+            {
+                Console.WriteLine("Starting as host...");
 
+                IsConnected = true;
+                _udpSocketv4 = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+
+                if (!BindSocket(_udpSocketv4, new IPEndPoint(addressIPv4, port)))
+                    return false;
+
+                var localPort = ((IPEndPoint)_udpSocketv4.LocalEndPoint).Port;
+                Console.WriteLine($"Bound to IPv4 address: {addressIPv4}:{localPort}");
+
+                IsRunning = true;
+
+                if (IPv6Support && IPv6Enabled)
+                {
+                    _udpSocketv6 = new Socket(AddressFamily.InterNetworkV6, SocketType.Dgram, ProtocolType.Udp);
+
+                    if (!BindSocket(_udpSocketv6, new IPEndPoint(addressIPv6, localPort)))
+                    {
+                        Console.WriteLine("Failed to bind IPv6 socket.");
+                        _udpSocketv6 = null;
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Bound to IPv6 address: {addressIPv6}:{localPort}");
+                    }
+                }
+
+                if (connectToSelf)
+                {
+                    Console.WriteLine("Host is connecting to itself...");
+                    if (!Connect(addressIPv4, localPort))
+                    {
+                        Console.WriteLine("Failed to connect host to itself.");
+                        return false;
+                    }
+                }
+
+                Thread listenerThread = new Thread(ListenerThread);
+                listenerThread.Start();
+
+                return true;
+            }
+            else
+            {
+                if (serverAddress == null)
+                {
+                    Console.WriteLine("Server address must be provided in client mode.");
+                    return false;
+                }
+
+                Console.WriteLine("Starting as client...");
+                return Connect(serverAddress, port);
+            }
+        }
+
+        /// <summary>
+        /// Connect to a remote server as a client.
+        /// </summary>
+        public bool Connect(IPAddress serverAddress, int port)
+        {
             try
             {
+                _udpSocketv4 = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
                 _udpSocketv4.Connect(new IPEndPoint(serverAddress, port));
                 IsRunning = true;
 
                 Console.WriteLine($"Connected to server at {serverAddress}:{port}");
 
-                // Dinleyici thread'ini başlat
                 Thread listenerThread = new Thread(ListenerThread);
                 listenerThread.Start();
 
@@ -98,28 +107,12 @@ namespace NimbleNet
             }
         }
 
-        private bool BindSocket(Socket socket, IPEndPoint target)
-        {
-            try
-            {
-                socket.Bind(target);
-                Console.WriteLine($"Socket bound to {target.ToString()}");
-                return true;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Failed to bind socket to {target}: {ex.Message}");
-                return false;
-            }
-        }
-
         /// <summary>
         /// Send data to the server.
         /// </summary>
-        /// <param name="data">Data to send</param>
         public void Send(byte[] data)
         {
-            if (_udpSocketv4 == null || !IsRunning)
+            if (_udpSocketv4 == null || !IsRunning || !_udpSocketv4.Connected)
             {
                 Console.WriteLine("Socket is not initialized or running.");
                 return;
@@ -136,51 +129,46 @@ namespace NimbleNet
             }
         }
 
+        private bool BindSocket(Socket socket, IPEndPoint target)
+        {
+            try
+            {
+                socket.Bind(target);
+                Console.WriteLine($"Socket bound to {target}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to bind socket to {target}: {ex.Message}");
+                return false;
+            }
+        }
+
         private void ListenerThread()
         {
             EndPoint bufferEndPoint = new IPEndPoint(IPAddress.Any, 0);
-            var selectReadList = new List<Socket> { _udpSocketv4 };
-            byte[] buffer = new byte[4096]; // Buffer size for received data
+            byte[] buffer = new byte[4096];
 
             while (IsRunning)
             {
                 try
                 {
-                    // Poll the socket and check for incoming data
-                    if (_udpSocketv4.Available == 0 && !_udpSocketv4.Poll(1000, SelectMode.SelectRead))
-                        continue;
-
-                    // Receive the data from the socket
-                    int bytesReceived = ReceiveFrom(_udpSocketv4, ref bufferEndPoint, buffer);
-
-                    if (bytesReceived > 0)
+                    if (_udpSocketv4 != null && _udpSocketv4.Available > 0)
                     {
-                        // Process received data (can raise event or handle data here)
-                        byte[] receivedData = new byte[bytesReceived];
-                        Array.Copy(buffer, receivedData, bytesReceived);
-                        OnDataReceived?.Invoke(receivedData);
+                        int bytesReceived = _udpSocketv4.ReceiveFrom(buffer, ref bufferEndPoint);
+
+                        if (bytesReceived > 0)
+                        {
+                            byte[] receivedData = new byte[bytesReceived];
+                            Array.Copy(buffer, receivedData, bytesReceived);
+                            //OnDataReceived?.Invoke(receivedData);
+                        }
                     }
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Error in ListenerThread: {ex.Message}");
                 }
-            }
-        }
-
-        /// <summary>
-        /// Receive data from the provided socket.
-        /// </summary>
-        private int ReceiveFrom(Socket socket, ref EndPoint endPoint, byte[] buffer)
-        {
-            try
-            {
-                return socket.ReceiveFrom(buffer, ref endPoint);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error in ReceiveFrom: {ex.Message}");
-                return 0;
             }
         }
 
