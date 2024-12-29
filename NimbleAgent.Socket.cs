@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Net;
 using System.Threading;
+using MemoryPack;
 
 namespace NimbleNet
 {
@@ -118,6 +119,34 @@ namespace NimbleNet
                 return;
             }
 
+            try
+            {
+                _udpSocketv4.Send(data);
+                Console.WriteLine($"Sent {data.Length} bytes to server.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to send data: {ex.Message}");
+            }
+        }
+        public void Send(byte[] data, MessageType type)
+        {
+            if (_udpSocketv4 == null || !IsRunning || !_udpSocketv4.Connected)
+            {
+                Console.WriteLine("Socket is not initialized or running.");
+                return;
+            }
+            switch (type)
+            {
+                case MessageType.ReliableOrdered:
+                    break;
+                case MessageType.UnreliableOrdered:
+                    break;
+                case MessageType.Reliable:
+                    break;
+                case MessageType.Unreliable:
+                    break;
+            }
             try
             {
                 _udpSocketv4.Send(data);
