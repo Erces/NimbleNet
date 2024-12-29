@@ -5,6 +5,8 @@ VisualStudioVersion = 17.10.35122.118
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NimbleNet", "NimbleNet.csproj", "{1463C459-367A-4FF4-9BFE-397E27E2A516}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NimbleNetTester", "..\NimbleNetTester\NimbleNetTester.csproj", "{4E242FE6-3A62-4E17-A9F0-400ACC397D96}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{1463C459-367A-4FF4-9BFE-397E27E2A516}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1463C459-367A-4FF4-9BFE-397E27E2A516}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1463C459-367A-4FF4-9BFE-397E27E2A516}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4E242FE6-3A62-4E17-A9F0-400ACC397D96}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4E242FE6-3A62-4E17-A9F0-400ACC397D96}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4E242FE6-3A62-4E17-A9F0-400ACC397D96}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4E242FE6-3A62-4E17-A9F0-400ACC397D96}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

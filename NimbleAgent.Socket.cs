@@ -17,6 +17,7 @@ namespace NimbleNet
         public bool IPv6Enabled;
 
         /// <summary>
+        /// [Server Mode]
         /// Start logic thread and listening on selected port
         /// </summary>
         /// <param name="addressIPv4">bind to specific ipv4 address</param>
@@ -28,33 +29,75 @@ namespace NimbleNet
                 return false;
 
             IsConnected = true;
-            //UseNativeSockets = UseNativeSockets && NativeSocket.IsSupported;
+            // IPv4 soketini oluştur
             _udpSocketv4 = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+
+            // IPv4 soketi başarıyla bağlanabiliyor mu?
             if (!BindSocket(_udpSocketv4, new IPEndPoint(addressIPv4, port)))
                 return false;
 
             var LocalPort = ((IPEndPoint)_udpSocketv4.LocalEndPoint).Port;
+            Console.WriteLine($"Bound to IPv4 address: {addressIPv4}:{LocalPort}");
 
             IsRunning = true;
-            //Check IPv6 support
+
+            // IPv6 desteği varsa, IPv6 soketini oluştur
             if (IPv6Support && IPv6Enabled)
             {
                 _udpSocketv6 = new Socket(AddressFamily.InterNetworkV6, SocketType.Dgram, ProtocolType.Udp);
-                //Use one port for two sockets
+
+                // IPv6 soketini aynı port ile bağla
                 if (!BindSocket(_udpSocketv6, new IPEndPoint(addressIPv6, LocalPort)))
                 {
+                    Console.WriteLine("Failed to bind IPv6 socket.");
                     _udpSocketv6 = null;
                 }
-
+                else
+                {
+                    Console.WriteLine($"Bound to IPv6 address: {addressIPv6}:{LocalPort}");
+                }
             }
 
+            // Dinleyici thread'i başlat
             Thread listenerThread = new Thread(ListenerThread);
             listenerThread.Start();
 
             return true;
-
-            return true;
         }
+
+        /// <summary>
+        /// [Client Mode]
+        /// Connect to a remote server as a client.
+        /// </summary>
+        /// <param name="serverAddress">Server IP address</param>
+        /// <param name="port">Server port</param>
+        public bool Connect(IPAddress serverAddress, int port)
+        {
+            if (IsRunning)
+                return false;
+
+            _udpSocketv4 = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+
+            try
+            {
+                _udpSocketv4.Connect(new IPEndPoint(serverAddress, port));
+                IsRunning = true;
+
+                Console.WriteLine($"Connected to server at {serverAddress}:{port}");
+
+                // Dinleyici thread'ini başlat
+                Thread listenerThread = new Thread(ListenerThread);
+                listenerThread.Start();
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to connect: {ex.Message}");
+                return false;
+            }
+        }
+
         private bool BindSocket(Socket socket, IPEndPoint target)
         {
             try
@@ -65,8 +108,31 @@ namespace NimbleNet
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to bind socket: {ex.Message}");
+                Console.WriteLine($"Failed to bind socket to {target}: {ex.Message}");
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// Send data to the server.
+        /// </summary>
+        /// <param name="data">Data to send</param>
+        public void Send(byte[] data)
+        {
+            if (_udpSocketv4 == null || !IsRunning)
+            {
+                Console.WriteLine("Socket is not initialized or running.");
+                return;
+            }
+
+            try
+            {
+                _udpSocketv4.Send(data);
+                Console.WriteLine($"Sent {data.Length} bytes to server.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to send data: {ex.Message}");
             }
         }
 
@@ -101,6 +167,7 @@ namespace NimbleNet
                 }
             }
         }
+
         /// <summary>
         /// Receive data from the provided socket.
         /// </summary>
@@ -116,6 +183,7 @@ namespace NimbleNet
                 return 0;
             }
         }
+
         static NimbleAgent()
         {
 #if DISABLE_IPV6
